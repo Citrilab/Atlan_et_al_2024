@@ -13,7 +13,7 @@ classdef MouseSummary < handle
     methods
         function obj = MouseSummary ()
             % This path needs to match the location of your data:
-            obj.PATH = 'D:\Atlan2021 data\';
+            obj.PATH = 'C:\Users\galat\Desktop\New folder\';
             
             obj.MOUSE_NM = char(inputdlg('Enter mouse name:'));              % mouse name;
             obj.PROJ_TO = inputdlg({'Enter ID of Primary Channel', ...

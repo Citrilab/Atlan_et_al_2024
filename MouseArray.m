@@ -9,7 +9,7 @@ classdef MouseArray < matlab.mixin.Copyable % allows the handle to be shallow co
     
     methods
         function obj = MouseArray(path)
-            obj.PATH = 'H:\My Drive\Matlab_Code'; %default path if not specficied
+            obj.PATH = 'C:\Users\galat\Documents\MATLAB\atlanetal2024'; %default path if not specficied
             if nargin > 0
                 tmp = load(path);
                 obj.PATH = fileparts(path);
@@ -82,7 +82,7 @@ classdef MouseArray < matlab.mixin.Copyable % allows the handle to be shallow co
             %used to change the path for all mice in the array (to their data) 
             for ii = 1:length(obj.MOUSE_ARRAY)
                 obj.MOUSE_ARRAY(ii).PATH = path;
-                
+                obj.MOUSE_ARRAY(ii).get_data;
             end
         end
                
@@ -321,7 +321,7 @@ classdef MouseArray < matlab.mixin.Copyable % allows the handle to be shallow co
             end
         end
         
-        function [r, p, del_ch, h_hist, sumfig_h, infra_slow] = baseline_quant(obj, binnum, align, inf_name, cond)
+        function [r, p, del_ch, sumfig_h] = baseline_quant(obj, binnum, align, inf_name, cond)
             % binnum  - number of bins
             % epoc to align to (trials etc)
             % inf_name (corresponding info name)
@@ -330,7 +330,6 @@ classdef MouseArray < matlab.mixin.Copyable % allows the handle to be shallow co
             if isempty(binnum)
                 binnum = 20;    % default if not defined
             end
-            infra_slow = table;
             for ii = 1:length(array)
                 info = array(ii).INFO.(inf_name);
                 if nargin > 4 && cond ~= 0
@@ -351,28 +350,6 @@ classdef MouseArray < matlab.mixin.Copyable % allows the handle to be shallow co
                     baseline = array(ii).data.(['ch', num2str(kk),'_baseline']);
                     data = array(ii).normalize_data(align, kk);
                     [r(kk, ii), p(kk, ii), top{kk, ii}, bot{kk, ii}, del_ch(ii).(['ch', num2str(kk)]), probs] = obj.base_outcome_corr(baseline(idx), info(idx,:), binnum, data(idx, :));
-                    sgtitle([array(ii).MOUSE_NM, ' ', array(ii).PROJ_TO{kk}], 'Interpreter', 'none');
-                
-                    h_hist(ii, kk) = figure;
-                    sgtitle([array(ii).MOUSE_NM, ' ', array(ii).PROJ_TO{kk}, ' basline dist'], 'Interpreter', 'none');
-                    ax1 = subplot(2, 3, 1:3);
-                    hold(ax1, 'on')
-                    
-                    sig = baseline;
-                    jitt = max(abs(sig))./2;
-                    sub_sig = sig(session_indices);     % sig by sessions
-                    sub_sig = sub_sig(cut_win+1:end, :);
-                    for tt = 1:size(sub_sig, 2)
-                        plot(ax1, sub_sig(:, tt) + tt*jitt, 'k');
-                        plot(ax1, smooth(sub_sig(:, tt), sm_win) + tt*jitt, 'Color', [0.8, 0.2, 0.8], 'LineWidth', 2);
-                    end
-                    legend('norm. baseline', 'smoothed bseline')
-                    
-                    [period, prob, period_fft] = obj.shuffle_baseline(shuff, sub_sig, sm_win, h_hist(ii, kk));
-                    tmp_tbl = table(period, prob, period_fft, {array(ii).MOUSE_NM}, array(ii).PROJ_TO(kk), ...
-                        'VariableNames', {'period', 'prob', 'fft_period', 'mouse', 'target'});
-                   
-                    set(gcf, 'Position', [220, 420, 1480, 420])
 
                     obj.param_data.(array(ii).PROJ_TO{kk}).(['m_', array(ii).MOUSE_NM]).baseline.outcome1.low = del_ch(ii).(['ch', num2str(kk)])(1, 1); % save paramters (low, high; prem, cor, om)
                     obj.param_data.(array(ii).PROJ_TO{kk}).(['m_', array(ii).MOUSE_NM]).baseline.outcome2.low = del_ch(ii).(['ch', num2str(kk)])(2, 1);
@@ -393,189 +370,14 @@ classdef MouseArray < matlab.mixin.Copyable % allows the handle to be shallow co
                     out_before_top = info.plot_result(top_idx - 1);
                     obj.param_data.(array(ii).PROJ_TO{kk}).(['m_', array(ii).MOUSE_NM]).pre_bot = hist(out_before_bot,unique(out_before_bot))/length(out_before_bot);
                     obj.param_data.(array(ii).PROJ_TO{kk}).(['m_', array(ii).MOUSE_NM]).pre_top = hist(out_before_top,unique(out_before_top))/length(out_before_top);
-                   
-
-                    infra_slow = [infra_slow; tmp_tbl];             % append row to table
-                    
-                    if kk > 1
-                        f = figure('Position' , [447, 346, 777, 600]);
-                        plot(baseline1, baseline,  '.')
-                        hold on 
-                        ylabel(array(ii).PROJ_TO{1})
-                        xlabel(array(ii).PROJ_TO{2})
-                        bls = polyfit(baseline1, baseline, 1);
-                        ytag = polyval(bls, baseline1);
-                        plot(baseline1, ytag, 'b--')
-                        [r, p] = corrcoef(baseline1, baseline);
-                        RSQ(ii) = r(2).^2;
-                        rsq = sprintf('%1.2f', r(2).^2);
-                        pval = sprintf('%1.5f', p(2));
-                        eq = ['y = ', sprintf('%1.2f', bls(1)), ' x+ ', sprintf('%1.2f', bls(2))];
-                        corr_text = sprintf('%s\n R^2 = %s\n p = %s', eq, rsq, pval);
-                        text(0.9, 0.5, corr_text,'HorizontalAlignment','right')
-                        sgtitle([array(ii).MOUSE_NM, ' ', ' baseline ch correlations'], 'Interpreter', 'none');
-                        
-                        ax_1 = axes(f, 'Position', [0.3056, 0.1501, 0.5567, 0.0969]);
-                        hold(ax_1, 'on')
-                        plot(baseline1, '.b')
-                        plot(baseline, '.r')
-                        ax_1.XLim = [ax_1.XLim(2)/3,  ax_1.XLim(2)/3 + 500];  % zoom on 500 last trials
-                        ax_1.XLabel.String = 'Trial #';
-                        ax_1.YLabel.String = 'Avg Baseline';
-                        legend(ax_1, array(ii).PROJ_TO)
-                        
-                        ax_2 = axes(f, 'Position', [0.6564, 0.3010, 0.2056, 0.1940]);
-                        hold(ax_2, 'on')
-                        [C, Ls]= cellfun(@xcorr, mat2cell(baseline1(session_indices)', ones(1, size(session_indices, 2))),...
-                                                mat2cell(baseline(session_indices)', ones(1, size(session_indices, 2))), ...
-                                                repmat({size(sub_sig, 1)/2}, [size(session_indices, 2), 1]), ...
-                                                repmat({'coeff'}, [size(session_indices, 2), 1]), 'UniformOutput', false);  
-                        plot(ax_2, Ls{1}, mean(cell2mat(C)), 'k') % plot mean xcorr between baselines over sessions
-                        ax_2.XLabel.String = 'Trial #';
-                        ax_2.YLabel.String = 'Corr.';
-                        ax_2.YLim = [-0.2, 1];
-                        
-                    end
                 end
                 
             end
-
-            mice_to_plot = {obj.MOUSE_ARRAY.MOUSE_NM};
-            fft_ax = axes(figure);
-            hold(fft_ax, 'on')
-            for ii = 1:numel(mice_to_plot)
-                idces = ismember(infra_slow.mouse, mice_to_plot{ii});
-                sub_tbl = infra_slow(idces, :);
-                sub_tbl(strcmp(sub_tbl.mouse, '4_from440'), :) = [];        %exclude audin/out mouse
-                targets{ii} = unique(sub_tbl.target);
-                xs_1 = (ii + (ii - 1)) + zeros(sum(strcmp(sub_tbl.target, targets{ii}(1))), 1);
-                data_1 = sub_tbl.fft_period(strcmp(sub_tbl.target, targets{ii}(1))) * 1000;
-                if size(targets{ii}, 1) > 1
-                    xs_2 = (ii + (ii - 1)) + 1 + zeros(sum(strcmp(sub_tbl.target, targets{ii}(2))), 1);
-                    data_2 = sub_tbl.fft_period(strcmp(sub_tbl.target, targets{ii}(2))) * 1000;
-                else
-                    xs_2 = [];
-                    data_2 = [];
-                    targets{ii}(2, 1) = {' '};
-                end
-                xs = [xs_1, xs_2];
-                ys = [data_1, data_2];
-                ys(isnan(ys)) = 0; %replace nans with zeros for plot
-                plot(xs', ys', 'ko-')
-            end
-            set(fft_ax, 'XLim', [0, 2*ii+1], 'XTick', [1:2*ii], 'XTickLabels', strrep([targets{:}], '_', ' '))
-            ylabel(fft_ax, 'Oscillation Freq. (mHz)')
-
             %plot summary graph for all mice
-            sumfig_h = obj.plot_baseline_summary('avg');
+            obj.plot_baseline_summary('avg');
         end
         
-%         function analyze_passive(obj, ds_fac, peak_range)
-%             peak_range = round(peak_range ./ ds_fac);
-%             for kk = 1:length(obj.MOUSE_ARRAY)
-%                 array = obj.MOUSE_ARRAY(kk);
-%                 info = array.INFO.passive_info;
-%                 if ~contains(info.cond, 'cno')
-%                     info.cond(contains(info.cond, 'anes')) = {'anesthetized'};     % combine all anesthetized under the same name (unless we want cno/saline)
-%                 end
-%                 freqs = unique(info.freq);
-%                 attens = unique(info.atten);
-%                 conds = flipud(unique(info.cond));  % change order so "pre" comes before "post"
-%                 ch1 = downsample(array.normalize_data('passive', 1)', ds_fac)';
-%                 %                 sig = array.normalize_data('passive', 1);
-%                 %                 ch1 = obj.smooth_sig(sig, ds_fac);
-%                 
-%                 pk1 = nan(numel(freqs), numel(attens), numel(conds));
-%                 if  ~isempty(array.PROJ_TO{2})
-%                     ch2 = downsample(array.normalize_data('passive', 2)', ds_fac)';
-%                     %                     sig2 = array.normalize_data('passive', 2);
-%                     %                     ch2 = obj.smooth_sig(sig2, ds_fac);
-%                     
-%                     pk2 = nan(numel(freqs), numel(attens), numel(conds));
-%                 end
-%                 clr = {'b', 'k', 'c', 'm', 'g'};
-%                 figure;
-%                 set(gcf, 'Position', [624   545   916   426]);
-%                 sgtitle(array.MOUSE_NM, 'Interpreter', 'none');
-%                 for tt = 1:numel(conds)
-%                     for ii = 1:numel(freqs)
-%                         for jj = 1:numel(attens)
-%                             trials = ch1(info.freq == freqs(ii) ...
-%                                 & info.atten == attens(jj) ...
-%                                 & strcmp(info.cond, conds{tt}), ...
-%                                 peak_range(1):peak_range(2));
-%                             if  ~isempty(array.PROJ_TO{2})
-%                                 trials2 = ch2(info.freq == freqs(ii) ...
-%                                     & info.atten == attens(jj) ...
-%                                     & strcmp(info.cond, conds{tt}), ...
-%                                     peak_range(1):peak_range(2));
-%                             end
-%                             
-%                             if ~isempty(trials)
-%                                 pk1(ii, jj, tt) = max(mean(trials));
-%                                 
-%                                 if  ~isempty(array.PROJ_TO{2})
-%                                     pk2(ii, jj, tt) = max(mean(trials2));
-%                                 end
-%                                 
-%                             else
-%                                 pk1(ii, jj, tt) = 0;
-%                             end
-%                             
-%                         end
-%                     end
-%                     
-%                     h3 = subplot(2, numel(conds) + 1, 1 + numel(conds));
-%                     hold(h3, 'on')
-%                     avg_data = ch1(strcmp(info.cond, conds{tt}) & info.freq == 0, :); % avg BBN (not 20, not opto)
-%                     
-%                     shadedErrorBar(linspace(-1, 4, size(avg_data, 2)), avg_data, {@mean, @sem}, clr{tt});
-%                     patch_h = flipud(findall(h3, 'Type', 'patch'));
-%                     legend(h3, patch_h, conds, 'Location', 'best', 'Interpreter', 'none')
-%                     if  ~isempty(array.PROJ_TO{2})
-%                         h4 = subplot(2, numel(conds) + 1, 2 + 2*numel(conds));
-%                         hold(h4, 'on')
-%                         avg_data = ch2(strcmp(info.cond, conds{tt}) & info.freq == 0, :); % avg BBN (not 20, not opto)
-%                         shadedErrorBar(linspace(-1, 4, size(avg_data, 2)), avg_data, {@mean, @sem}, clr{tt});
-%                         patch_h = flipud(findall(h3, 'Type', 'patch'));
-%                         legend(h4, patch_h, conds, 'Location', 'best', 'Interpreter', 'none')
-%                     end
-%                 end
-%                 
-%                 for ii = 1:numel(conds)
-%                     h1 = subplot(2, numel(conds) + 1, ii) ;
-%                     imagesc(squeeze(pk1(:,:,ii)));
-%                     caxis([prctile(pk1(:), 1), prctile(pk1(:), 99)])
-%                     title([array.PROJ_TO{1}, ' ', conds{ii}], 'Interpreter', 'none')
-%                     set(h1, 'YTick', 1:numel(freqs), ...
-%                         'YTickLabel', cellstr(num2str(freqs ./1000, '%01.1f')), ...
-%                         'XTick', 1:numel(attens), ...
-%                         'XTickLabel', attens)
-%                     ylabel('Freq (Hz)')
-%                     xlabel('Attenuation (db)')
-%                     
-%                     if~isempty(array.PROJ_TO{2})
-%                         h2 = subplot(2, numel(conds) + 1, (ii + 1) + numel(conds));
-%                         imagesc(squeeze(pk2(:,:,ii)));
-%                         caxis([prctile(pk2(:), 1), prctile(pk2(:), 99)])
-%                         title([array.PROJ_TO{2}, ' ', conds{ii}], 'Interpreter', 'none')
-%                         set(h2, 'YTick', 1:numel(freqs), ...
-%                             'YTickLabel', cellstr(num2str(freqs ./ 1000, '%01.1f')), ...
-%                             'XTick', 1:numel(attens), ...
-%                             'XTickLabel', attens)
-%                         ylabel('Freq (Hz)')
-%                         xlabel('Attenuation (db)')
-%                     end
-%                 end
-%                 %                 for rr = 1:numel(conds)
-%                 %                     obj.param_data.(array.PROJ_TO{1}).(['m_', array.MOUSE_NM]).passive.(['cond', num2str(rr)]) = pk1(:, :, rr);
-%                 %                     if  ~isempty(array.PROJ_TO{2})
-%                 %                         obj.param_data.(array.PROJ_TO{2}).(['m_', array.MOUSE_NM]).passive.(['cond', num2str(rr)]) = pk2(:, :, rr);
-%                 %                     end
-%                 %                 end
-%             end
-%         end
-        
+
         function hf = analyze_rt(obj, comb, cond1, cond2)
             % compares RT across 2 conditions
             % (e.g. 'info.cue_int > 0.5 & info.is_light == 1', 'info.cue_int < 1 & info.is_light == 1')
@@ -718,38 +520,6 @@ classdef MouseArray < matlab.mixin.Copyable % allows the handle to be shallow co
             end
         end
         
-%         function lag = channel_crosscorr(obj, time_win)
-%             array = obj.MOUSE_ARRAY;
-%             fs = 1000;                      % unless downsampled - this is fs
-%             time_win = time_win * fs;       % translate to samples
-%             for ii = 1:length(array)
-%                 ch1 = array(ii).normalize_data('trials', 1);
-%                 if ~isempty(array(ii).PROJ_TO{2})
-%                     ch2 = array(ii).normalize_data('trials', 2);
-%                 end
-%                 
-%                 
-%                 sig1 = reshape(ch1', 1, []);
-%                 sig2 = reshape(ch2', 1, []);
-%                 
-%                 gcamp_self = xcorr(sig1,sig1, time_win);
-%                 gcamp_self =  gcamp_self - mean(gcamp_self);
-%                 geco_gcamp = xcorr(sig1,sig2, time_win);
-%                 geco_gcamp = geco_gcamp - mean(geco_gcamp);
-%                 
-%                 figure;
-%                 title('XCorr of entire signal')
-%                 plot(linspace(-time_win, time_win, length(gcamp_self)), gcamp_self, 'g');
-%                 hold on;
-%                 plot(linspace(-time_win, time_win, length(geco_gcamp)), geco_gcamp, 'r');
-%                 legend('Gcamp-Gcamp', 'Geco-Gcamp')
-%                 
-%                 [~, loc] = findpeaks(geco_gcamp);
-%                 [~, idx] = min(abs(loc - time_win)); % closest peak to 0
-%                 loc = loc(idx);
-%                 lag(ii) = loc - time_win;
-%             end
-%         end
         
         function h = saliency_mock(obj, ds_fac, comb_flg, target)
             if ~comb_flg
@@ -851,163 +621,26 @@ classdef MouseArray < matlab.mixin.Copyable % allows the handle to be shallow co
             
         end
         
-%         function sucess_vs_error_type(obj)
-%             for ii = 1:length(obj.MOUSE_ARRAY)
-%                 array = obj.MOUSE_ARRAY(ii);
-%                 info = array.INFO.t_info;
-%                 days = unique(info.day);
-%                 cor = [];
-%                 om = [];
-%                 prem = [];
-%                 for tt = 1:numel(days)
-%                     cor (tt) = size(info.plot_result(info.day == days(tt) & info.plot_result == 1) ,1) /  size(info.plot_result(info.day == days(tt)), 1);
-%                     om (tt) = size(info.plot_result(info.day == days(tt) & info.plot_result == 0) ,1) /  size(info.plot_result(info.day == days(tt)), 1);
-%                     prem (tt) = size(info.plot_result(info.day == days(tt) & info.plot_result == -1) ,1) /  size(info.plot_result(info.day == days(tt)), 1);
-%                 end
-%                 
-%                 rat = prem ./ (1 - cor);
-%                 figure;
-%                 title([array.MOUSE_NM, ' Trial Success'], 'Interpreter', 'none');
-%                 ylabel('Correct %')
-%                 xlabel('Session')
-%                 hold on
-%                 for tt = 1:numel(days)
-%                     bar(tt, cor(tt), 'FaceColor', 'r', 'FaceAlpha', rat(tt));
-%                 end
-%                 colormap([ones(100, 1), [linspace(1, 0, 100)', linspace(1, 0, 100)']])
-%                 h_cb(ii) = colorbar;
-%                 h_cb(ii).TickLabels = num2cell(linspace(min(rat), max(rat), size(h_cb(ii).Ticks, 2)));
-%                 h_cb(ii).Title.String = 'Pr/Om ratio';
-%             end
-%         end
-        
-%         function baseline_variance(obj, trial_limit, plot_flg, export_flg)
-%             % function baseline_variance compares baseline variance in X
-%             % first trials vs the rest in each session.
-%             % export flg saves data into an excel file (for Ami)
-%             for ii = 1:length(obj.MOUSE_ARRAY)
-%                 array = obj.MOUSE_ARRAY(ii);
-%                 days = unique(array.INFO.t_info.day);
-%                 data = array.normalize_data('trials', 1);
-%                 baseline_1 = mean(data(:, 1000:5000), 2);
-%                 if ~isempty(array.PROJ_TO{2})
-%                     baseline_2 = array.data.ch2_baseline;
-%                 else
-%                     baseline_2 = zeros(size(baseline_1));
-%                 end
-%                 RT = array.INFO.t_info.first_lick(array.INFO.t_info.plot_result == 1) - array.INFO.t_info.delay(array.INFO.t_info.plot_result == 1 );
-%                 cr_base_1 = baseline_1(array.INFO.t_info.plot_result == 1);
-%                 pr_base_1 = baseline_1(array.INFO.t_info.plot_result == -1); %baseline in impulsive licks
-%                 m_base_1 =  baseline_1(array.INFO.t_info.plot_result == 0 | array.INFO.t_info.plot_result == 2); % baseline in misses
-%                 
-%                 cr_base_2 = baseline_2(array.INFO.t_info.plot_result == 1);
-%                 early_base = zeros(2, numel(days));
-%                 late_base = zeros(2, numel(days));
-%                 cell_data = cell(2, numel(days));
-%                 for tt = 1:numel(days)
-%                     early_subset = find(ismember(array.INFO.t_info.day, days(tt)) & array.INFO.t_info.trial_number < trial_limit);
-%                     late_subset = find(ismember(array.INFO.t_info.day, days(tt)) & array.INFO.t_info.trial_number >= trial_limit);
-%                     extra_trials = mod(numel(late_subset), trial_limit);
-%                     late_subset = late_subset(1:end-extra_trials);  % remove excess trials for analysis
-%                     binned_late = reshape(late_subset, trial_limit, []);
-%                     early_base(1, tt) = mean(baseline_1(early_subset));
-%                     early_base(2, tt) = mean(baseline_2(early_subset));
-%                     late_base(1, tt) = mean(baseline_1(binned_late));
-%                     late_base(2, tt) = mean(baseline_2(binned_late));
-%                     if export_flg
-%                         session_1 = [var(baseline_1(early_subset)), var(baseline_1(binned_late))];
-%                         session_2 = [var(baseline_2(early_subset)), var(baseline_2(binned_late))];
-%                         xlswrite('mice_data.xls', session_1, array.MOUSE_NM, ['A' , int2str(1 + tt)]); 
-%                         xlswrite('mice_data.xls', session_2, array.MOUSE_NM, ['A' , int2str(2 + numel(days) + tt)]); 
-%                     end
-%                     
-%                 end
-%                 if export_flg
-%                     xlswrite('mice_data.xls', array.PROJ_TO(1), array.MOUSE_NM, ['A' , int2str(1)]);
-%                     if ~isempty(array.PROJ_TO{2})
-%                         xlswrite('mice_data.xls', array.PROJ_TO(2), array.MOUSE_NM, ['A' , int2str(1 + numel(days))]);
-%                     end
-%                 end
-%                 if plot_flg
-%                     ha(1) = axes(figure);
-%                     sgtitle(array.MOUSE_NM, 'Interpreter', 'none')
-%                     ha1 = subplot(3,1,1);
-%                     plot(ha1, early_base(1, :), 'o-');
-%                     hold(ha1, 'on')
-%                     plot(ha1, late_base(1, :), 'o-');
-%                     legend(['early ', num2str(trial_limit), ' trials'], 'late trials');
-%                      xlabel('Session #')
-%                     ylabel('baseline variance')
-%                     title(ha1, array.PROJ_TO{1})
-%                     ha1.YLim = [-0.3,0.3];
-%                     
-%                     ha2 = subplot(3,1,2);
-%                     plot(ha2, early_base(2, :), 'o-');
-%                     hold(ha2, 'on')
-%                     plot(ha2, late_base(2, :), 'o-');
-%                     title(ha2, array.PROJ_TO{2})
-%                     xlabel('Session #')
-%                     ylabel('baseline variance')
-%                     legend(['early ', num2str(trial_limit), ' trials'], 'late trials')
-%                     
-%                     ha3 = subplot(3,1,3);
-%                     %sgtitle(array.MOUSE_NM, 'Interpreter', 'none')
-%                     plot(ha3, RT, cr_base_1, '.')
-%                     hold (ha3, 'on')
-%                     if ~isempty(array.PROJ_TO{2})
-%                         plot(ha3, RT, cr_base_2, '.')
-%                     end
-%                     legend(array.PROJ_TO{1},  array.PROJ_TO{2})
-%                     ha3.XLabel.String = 'RT';
-%                     ha3.YLabel.String = '\DeltaF/F'; 
-%                 end
-%                 bsline{ii} = mean([early_base(1, :); late_base(1,:)]);
-%                 %bsline{ii} = mean(pr_base_1);
-%             end
-%             ha4 = axes(figure);
-%             hold on
-%             clr = {'b', 'g', 'm', 'c', 'r'};
-%             for ii = 1:numel(bsline)/2
-%                 plot(ha4, (2*ii - 1), bsline{ii}, 'o', 'Color', clr{mod(ii,5) + 1})
-%                 plot(ha4, (2*ii), bsline{numel(bsline)/2+ ii}, 'o', 'Color', clr{mod(ii,5) + 1})
-%                 plot(ha4,[(2*ii - 1), (2*ii)], [mean(bsline{ii}), mean(bsline{numel(bsline)/2+ ii})], '*-k')
-%             end
-%             set(ha4,'XTick', 0.5+(1:2:numel(bsline)), 'XTickLabels', strrep({obj.MOUSE_ARRAY.MOUSE_NM}, '_', ' '), 'XLim', [0, numel(bsline) + 1])
-%             ylabel('avg ACCp baseline')
-%         end
-        
         function hypovig(obj, plot_flg)
             for ii = 1:length(obj.MOUSE_ARRAY)
                 array = obj.MOUSE_ARRAY(ii); 
                     
-%                 if length(obj.MOUSE_ARRAY) < 10
-%                     %if running for DREADDs, eliminate first 3 saline days from comp.
-%                     if numel(unique(array.INFO.t_info.day)) > 3
-%                         array.INFO.t_info(array.INFO.t_info.day < 4, :) = [];
-%                     end
-%                 end
+                if contains(obj.MOUSE_ARRAY(1).MATFILE.trials.Properties.Source, 'DREADD')
+                    %if running for DREADDs, eliminate first 3 saline days from comp.
+                    if numel(unique(array.INFO.t_info.day)) > 3
+                        array.INFO.t_info(array.INFO.t_info.day < 4, :) = [];
+                    end
+                end
                     
-                [env_trials, rest_trials, seq_trials] = array.id_hypovig(5);
+                [env_trials, ~, seq_trials] = array.id_hypovig(5);
                 info = array.INFO.t_info;
-
-                RT = info.first_lick - info.delay;
                                 
                 if plot_flg == 3
-                    % plot baseline streak vs rest
-                    rest_trials(abs(info.plot_result(rest_trials))==1) = []; % compare baseline miss vs streak miss
-                    
+                    % plot baseline streak vs rest                    
                     acc_ch = find(strcmp(array.PROJ_TO, 'ACC'));
                     acc_ch = num2str(acc_ch);
                     if ~isempty(acc_ch)
-                    streak_bs = array.data.(['ch', acc_ch, '_baseline'])(seq_trials);
-                    rest_bs = array.data.(['ch', acc_ch, '_baseline'])(rest_trials);
-                    env_bs = array.data.(['ch', acc_ch, '_baseline'])(env_trials);
-
-                    avg_str_bs(ii) = mean(streak_bs);
-                    avg_rest_bs(ii) = mean(rest_bs);
-                    avg_env_bs(ii) = mean(env_bs);
                     end
-                    late_idx = find(strcmp(info.trial_result, 'late'));
                     info.plot_result(info.plot_result == 2) = 0;    %late is miss
                     D = diff([false,diff(info.plot_result)'==0,false]); % to get all misses by size of streak
                     misses_by_size = arrayfun(@(a,b)info.plot_result(a:b)',find(D>0),find(D<0),'uni',0);   % gets consective outcomes
@@ -1015,58 +648,19 @@ classdef MouseArray < matlab.mixin.Copyable % allows the handle to be shallow co
                     miss_size{ii} = cellfun(@numel, misses_by_size);                                % how many consecutive misses
                     miss_size{ii}(miss_size{ii} > 50) = [];
                     
-                    env_late(ii) = numel(intersect(late_idx, env_trials)) / numel(env_trials);
-                    rest_late(ii) = numel(intersect(late_idx, rest_trials)) / numel(rest_trials);                    
                 end
             end
        
             if plot_flg == 3
-                ax = axes(figure);
-                hold(ax, 'on')
-                plot(ax,[avg_rest_bs; avg_str_bs], 'ko-')
-                ax.XLim = [0.5,2.5];
-                ax.XTick = [1:2];
-                ax.XTickLabel = {'rest', 'streaks'};
-                title('Baseline quantification')
-                plot(ax, [1:2], mean([avg_rest_bs; avg_str_bs],2), 'mo')
-                
-                
+         
                 figure;
                 cdfplot(cell2mat(miss_size));
                 figure;
                 histogram(cell2mat(miss_size), 'BinEdges', linspace(1,50, 50), 'Normalization', 'count')
-                
-                ax2 = axes(figure);
-                hold(ax2, 'on')
-                plot([1:2], [rest_late; env_late], 'ko-')
-                ax2.XLim = [0.5, 2.5];
-                ax2.XTick = [1:2];
-                ax2.XTickLabel = {'rest', 'env'};
-                title('Baseline quantification')
             end
         end
         
-%         function compare_delays (obj)
-%             % used to look at delays in correct trial preceding premature
-%             % vs other outcomes (thought maybe basline is affected by this)
-%             for ii = 1:length(obj.MOUSE_ARRAY)
-%                 info = obj.MOUSE_ARRAY(ii).INFO.t_info;
-%                 prev_delay = circshift(info.delay, 1);          % delays of previous trial
-%                 pr = prev_delay(circshift(info.plot_result, 1) == 1 & info.plot_result == -1);
-%                 cr = prev_delay(circshift(info.plot_result, 1) == 1 & info.plot_result == 1);
-%                 om = prev_delay(circshift(info.plot_result, 1) == 1 & (info.plot_result == 0 | info.plot_result == 2));
-%                 figure;
-%                 hold on
-%                 scatter(0.1* rand(length(pr), 1) + ones(length(pr), 1), pr, 'r');
-%                 plot(1, median(pr), 'k*')
-%                 scatter(0.1* rand(length(cr), 1) + 2*ones(length(cr), 1), cr, 'g');
-%                 plot(2, median(cr), 'k*')
-%                 scatter(0.1* rand(length(om), 1) + 3*ones(length(om), 1), om, 'k');
-%                 plot(3, median(om), 'k*')
-%                 ranksum(pr, [cr; om])
-%             end
-%         end
-        
+
         function plot_sig(obj, cond)
             array = obj.MOUSE_ARRAY;
             for ii = 1:length(array)
@@ -1406,13 +1000,11 @@ avg_data{1} = mean(sample_norm)./ max(mean(sample_norm));
             end
         end
         
-        function hf2 = plot_baseline_summary(obj, what_to_plot)
+        function plot_baseline_summary(obj, what_to_plot)
             % plots a summary plot and fit for all mice in array
             proj_targets = fieldnames(obj.param_data);
             proj_targets(strcmp(proj_targets, 'zscore')) = [];
             hf = figure;
-            hf2 = figure;
-            hf3 = figure;
             clr = {'.r', '.g', '.k'};
             nme = {'prem', 'corr', 'miss'};
             
@@ -1430,11 +1022,6 @@ avg_data{1} = mean(sample_norm)./ max(mean(sample_norm));
                     corr(ii, :) = params(2, :);
                     miss(ii, :) = params(3, :);
                     
-                    if strcmp(proj_targets{tt}, 'ACC')
-                        pre_bot(ii, :) = obj.param_data.(proj_targets{tt}).(fnames{ii}).pre_bot;
-                        pre_top(ii, :) = obj.param_data.(proj_targets{tt}).(fnames{ii}).pre_top;
-                    end
-                    
                     mse_idx = find(strcmp({obj.MOUSE_ARRAY.MOUSE_NM}, fnames{ii}(3:end))); % find where this mouse is in the object
                     rel_ch = find(cell2mat((cellfun(@strcmp, {obj.MOUSE_ARRAY(mse_idx).PROJ_TO}, proj_targets(tt), 'UniformOutput', false)))); % which channel
                     switch what_to_plot
@@ -1447,12 +1034,6 @@ avg_data{1} = mean(sample_norm)./ max(mean(sample_norm));
                 data.prem = prem;
                 data.corr = corr;
                 data.miss = miss;
-                figure(hf2)
-                subplot(numel(proj_targets), 1, tt)
-                hold on
-                plot(ones(1, length(bseline)), bseline, 'ob')
-                plot(1, mean(bseline), 'ok')
-                title(['Avg Baseline ' proj_targets{tt}])
                
                 
                 for kk = 1:3
@@ -1465,26 +1046,11 @@ avg_data{1} = mean(sample_norm)./ max(mean(sample_norm));
                     end
                 end
             end
-            figure(hf3)
-            tmp_ax = axes(hf3);
-            hold on
-            errorbar([ones(size(pre_bot,2), 1)'; 2*ones(size(pre_bot,2), 1)'], [mean(pre_bot);mean(pre_top)], [sem(pre_bot); sem(pre_top)], 'o-')
-            legend('prem', 'miss', 'hit')
-            set(tmp_ax, 'XTick', [1:2], 'XTickLabels', {'pre bot.', 'pre top.'});
-            title('outcome before extreme baseline - ACC')
-            
             
             ha = findall(hf, 'Type', 'Axes');
             set(ha, 'YLim', [0, max([ha.YLim])], 'XTick', [0,1], 'XTickLabel', {'1', num2str(length(prem))}); % sprintfc('%g',1:length(pre_bot))
             hlab = [ha.XLabel];
             set(hlab, 'String', 'Quantile')
-            
-            
-            ha = findall(hf2, 'Type', 'Axes');
-            set(ha, 'YLim', [0, max([ha.YLim])], 'XTick', 1, 'XTickLabel', {'baseline'});
-            hlab = [ha.XLabel];
-            set(hlab, 'String', 'CLA baseline')
-            
         end
         
         function [acc_ch, ofc_ch, acc_info, ofc_info] = combine_by_target(obj, data_to_combine, axon_data)
@@ -1534,75 +1100,6 @@ avg_data{1} = mean(sample_norm)./ max(mean(sample_norm));
             end
         end
         
-%         function ha_ind = cloud_comp(obj, epoch)
-%             % COMPARES PRE-CUE BASLINE IN CLOUD VS NO CLOUD
-%             array = obj.MOUSE_ARRAY;
-%             param_struct = obj.param_data;
-% 
-%             for ii = 1:length(array)
-%                 data_all = array(ii).normalize_data('cue', 1); 
-%                 t_vec = linspace(-5,15, length(data_all));
-%                 
-%                 [nme, num_run, data_param, t_win] = obj.get_plot_settings(epoch);
-%                 for tt = 1:2
-%                     conds = {'cue_info.plot_result ~= 1'; 'cue_info.plot_result == 1'};                % tt = 1 - incorrect, tt = 2 - correct
-%                     const_con = 'cue_info.delay > 2';
-%                     [info, data_idx, params] = obj.get_trial_subset(array(ii).INFO, epoch, strcat(conds{tt}, '&', const_con));
-%                     data = data_all(data_idx, :); % can use this to create sorted heatmap
-%                     for jj = 1:num_run
-%                         sub_data = data(info.(data_param) == params(jj), :);
-%                         [ha_ind(tt, jj), q] = array(ii).analyze_data_segment(t_vec, sub_data, param_struct.zscore, t_win, 100);  % change zscore to 0 to stop zscoring
-%                         sgtitle([strrep(array(ii).MOUSE_NM, '_', ' '), ' ', array(ii).PROJ_TO{1}, ' ', strrep(nme, '_', ' '), ' ', num2str(jj)]);
-%                         param_struct.(array(ii).PROJ_TO{1}).(['m_', array(ii).MOUSE_NM]).(nme).([data_param, num2str(jj)]) = q;
-%                     end  
-%                 end
-%                 obj.merge_ind_plots(ha_ind(: ,1)');
-%                 obj.merge_ind_plots(ha_ind(:, 2)');
-%             end
-%         end
-%         function rise_times = rise_time_analysis(obj)
-%             array = obj.MOUSE_ARRAY;
-%             licks = [];
-%             movs = [];
-%             for ii = 1:length(array)
-%                 if ~strcmp(array(ii).MOUSE_NM, '1_from404')
-%                 [lick_rise, mov_rise] = array(ii).mov_lick_comp(1);
-%                 licks = [licks; lick_rise(~isnan(lick_rise))];
-%                 movs = [movs; mov_rise(~isnan(mov_rise))];
-%                 end
-%             end
-%             figure; plot([1,2], [licks, movs], 'k-o')
-%             hold on
-%             plot([1,2], [median(licks), median(movs)], '*m')
-%             xticks([1:2])
-%             xticklabels({'Licking', 'Locomotion'})
-%             xlim([0.5, 2.5])
-%             ylabel('75% Rise Time (s)')
-%             title(['Significant at:', num2str(signrank(licks, movs)), ' Wilcoxon Sign rank unparamteric paired test'])
-%             
-%             
-% %             % for ACC only:
-% %             targets = {obj.MOUSE_ARRAY.PROJ_TO};
-% %             targets = [targets{:}];
-% %             targets = targets(:);
-% %             to_keep = find(strcmp(targets(~cellfun(@isempty, targets)), 'ACC'));
-%         end
-%         function generate_autocorr(obj, proj_target)
-%             % used to plot average auto correlations of particular
-%             % projection networks
-%             for ii = 1:length(obj.MOUSE_ARRAY)
-%                 array = obj.MOUSE_ARRAY(ii);
-%                 tmp_autocorr = array.create_autocorr(proj_target, 300, 2000, 10);
-%                 if ~isnan(tmp_autocorr)
-%                     auto_corr(ii, :) = tmp_autocorr;
-%                 end
-%             end
-%             auto_corr(sum(auto_corr') == 0, :) = []; % delete any empty rows
-%             figure; 
-%             shadedErrorBar(linspace(-2000, 2000, size(auto_corr, 2)), auto_corr, {@mean, @sem}, 'b');
-%             xlim([-200, 200])
-%             title([proj_target ' auto-correlation'])
-%         end
         
         function  arg_out = split_array(obj, param, calc_flg, plot_flg, epoch, group_by)
             % compare groups by behavior, calc flg gets numbers, plot flg
@@ -1625,20 +1122,8 @@ avg_data{1} = mean(sample_norm)./ max(mean(sample_norm));
                
                 if calc_flg
                     switch epoch
-                        case 'cue'
-                            h1 = tmp_obj.compare_param(epoch, 1, 'cue_info.plot_result ~= 1 & cue_info.is_light == 0');
-                        case 'trials'
-                            h1 = tmp_obj.compare_param(epoch, 1, 't_info.first_lick > 1 | isnan(t_info.first_lick)');
-                        case 'vis'
-                            h1 = tmp_obj.compare_param(epoch, 1, 'cue_info.plot_result ~= 1');
-                        case 'mov'
-                            h1 = tmp_obj.compare_param(epoch, 1);
-                        case 'lick'
-                            h1 = tmp_obj.compare_param(epoch, 1);
                         case 'baseline'
-                             [r, p, null, hh, sum_h(ii), is_tbl{ii}] = tmp_obj.baseline_quant(40, 'trials', 't_info', 0);
-                        case 'cloud'
-                            h1 = tmp_obj.cloud_comp(epoch);
+                             [r, p, null] = tmp_obj.baseline_quant(30, 'trials', 't_info', 0);
                         case 'RT'
                             if ~strcmp(group_by, 'hm3dq')
                                 hf(ii) = tmp_obj.analyze_rt(0, 'info.plot_result == -1');
@@ -1721,38 +1206,19 @@ avg_data{1} = mean(sample_norm)./ max(mean(sample_norm));
                             title(['group ', num2str(ii), ' summary'])
 
                         case 'baseline'
-                            [~, a_sum, o_sum]  = tmp_obj.plot_summary('baseline', 'low', 1, 'ACC', 'OFC');
-                            [~, a_sum, o_sum]  = tmp_obj.plot_summary('baseline', 'high', 1, 'ACC', 'OFC');
-                            figure; plot(ii, is_tbl{ii}.fft_period(strcmp(is_tbl{ii}.target, 'ACC')), 'o');
+                            tmp_obj.plot_summary('baseline', 'low', 1, 'ACC', 'OFC');
+                            tmp_obj.plot_summary('baseline', 'high', 1, 'ACC', 'OFC');
                         
-                        case 'post_hit'
-                            info{ii} = tmp_obj.combine_info('t_info');
-                            info{ii}.plot_result(info{ii}.plot_result == 2) = 0; %late is miss
-                            after_hit_idx = find(info{ii}.plot_result == 0) + 1;
-                            after_hit_idx(after_hit_idx > height(info{ii})) = [];
-                            
-                            new_info = info{ii}(after_hit_idx, :);
-                            
-                            new_info.mse_nm = categorical(new_info.mse_nm);
-                            outcms{ii} = new_info;
                         case 'hypovig'
                             tmp_obj.hypovig(3);
-                        case 'quick_bsline'
-                            for kk = 1:length(tmp_obj.MOUSE_ARRAY)
-                                acc_ch = find(strcmp(tmp_obj.MOUSE_ARRAY(kk).PROJ_TO, 'ACC'));
-                                if ~isempty(acc_ch)
-                                    bsline = tmp_obj.MOUSE_ARRAY(kk).data.(['ch', num2str(acc_ch),'_baseline']);
-                                    avg_bsline(kk) = mean(bsline);
-                                else
-                                    avg_bsline(kk) = nan;
-                                end
-                            end
-                            figure; errorbar(ii, nanmean(avg_bsline), sem(avg_bsline'), 'ok')
                         case 'baseline_summary'
                             [acc1(ii), acc2(ii)] = tmp_obj.baseline_by_outcome_sum();
                             arg_out = [acc1; acc2];
                         case 'psych'
                             tmp_obj.behavior_curves(1);
+                        case 'bbn_response'
+                            tmp_obj.trial_onset_summary;
+                            sgtitle(['Group ', num2str(ii)])
                         otherwise
                             [obj.plot_handles.trials.summary_plots.(param), a_sum, o_sum] = tmp_obj.plot_summary(epoch, param, 1, 'ACC', 'OFC');
                             fighandles = get(groot, 'Children');
@@ -1771,41 +1237,6 @@ avg_data{1} = mean(sample_norm)./ max(mean(sample_norm));
             % group summary code:
             if strcmp(epoch, 'RT') & ~strcmp(group_by, 'hm3dq')
                 arg_out = obj.create_RT_summary(hf);
-            elseif strcmp(epoch, 'post_hit')
-                hl = axes(figure);
-                hold(hl, 'on')
-                tot_tbl = table;
-                for tt = 1:numel(groups)
-                    tmp = table;
-                    tmp.data = grpstats(outcms{tt}.plot_result, outcms{tt}.mse_nm, @(x)sum(x==0)/length(x))  ./ grpstats(info{tt}.plot_result, info{tt}.mse_nm, @(x)sum(x==0)/length(x));
-                    tmp.outcome(:) = 1;
-                    
-                    tmp2 = table;
-                    tmp2.data = grpstats(outcms{tt}.plot_result, outcms{tt}.mse_nm, @(x)sum(x==1)/length(x))  ./  grpstats(info{tt}.plot_result, info{tt}.mse_nm, @(x)sum(x==1)/length(x));
-                    tmp2.outcome(:) = 2;
-                    
-                    tmp3 = table;
-                    tmp3.data = grpstats(outcms{tt}.plot_result, outcms{tt}.mse_nm, @(x)sum(x==-1)/length(x)) ./  grpstats(info{tt}.plot_result, info{tt}.mse_nm, @(x)sum(x==-1)/length(x));
-                    tmp3.outcome(:) = 3;
-                    
-                    com_tbl = [tmp; tmp2; tmp3];
-                    com_tbl.group(:) = tt;
-                    tot_tbl = [tot_tbl; com_tbl];
-                end
-                
-                for tt = 1:3
-                    tmp_fig = axes(figure);
-                    beeswarm(tot_tbl.group(tot_tbl.outcome == tt) + 4 * (tt-1), ...
-                             tot_tbl.data(tot_tbl.outcome == tt), ...
-                             'colormap', [140, 179, 250;62,98,83; 129, 88, 135 ] ./255, ...
-                             'overlay_style', 'ci');
-                    copyobj(tmp_fig.Children, hl)
-                    close(tmp_fig.Parent)
-                end
-                hl.XTick = [2,6,10];
-                hl.YLabel.String = {'Probability (%)'};
-                hl.XTickLabel = {'miss', 'hit', 'prem'};
-                hl.Title.String = 'Outcome after hit';
             end
         end
         
@@ -2058,140 +1489,26 @@ avg_data{1} = mean(sample_norm)./ max(mean(sample_norm));
         end
         
         
-        function trial_onset_summary(obj, axon_data)
-            [acc_ch, ofc_ch, acc_info, ofc_info] = obj.combine_by_target('trials', axon_data);
+        function trial_onset_summary(obj)
+            [acc_ch, ofc_ch, acc_info, ofc_info] = obj.combine_by_target('trials', 0);
             acc_ch(acc_info.first_lick < 1, :) = [];
             ofc_ch(ofc_info.first_lick < 1, :) = [];
             
             t_vec = linspace(-5, 15, size(acc_ch, 2));
             f = figure; 
-            subplot(1,2,1)
-            shadedErrorBar(downsample(t_vec', 100)', downsample(acc_ch', 100)', {@mean, @sem}, 'k');
-            if axon_data
-                title('ACCi')
-            else
-                title('ACCp')
-            end
+            ax1 = subplot(1,2,1);
+            shadedErrorBar(downsample(t_vec', 10)', downsample(acc_ch', 10)', {@mean, @sem}, 'k');
             ylabel('zscored \DeltaF/F')
             xlabel('Time relative to trial onset (s)')
-            
-            subplot(1,2,2)
-            shadedErrorBar(downsample(t_vec', 100)', downsample(ofc_ch', 100)', {@mean, @sem}, 'k');
-            if axon_data
-                title('AUDi')
-            else
-                title('OFCp')
-            end
+            title('ACCp')
+            ax2 = subplot(1,2,2);
+            shadedErrorBar(downsample(t_vec', 10)', downsample(ofc_ch', 10)', {@mean, @sem}, 'k');
             ylabel('zscored \DeltaF/F')
             xlabel('Time relative to trial onset (s)')
-            
+            title('OFCp')
+            set([ax1, ax2], 'XLim', [-0.1, 1], 'YLim', [-0.07, 0.2]);
         end
         
-%         function passive_by_freqs(obj, quant_by, killnan)
-% %             conds = {'info.freq == 0',...
-% %                 'info.freq > 0 & info.freq < 5000', ...
-% %                 'info.freq > 5000 & info.freq < 10000', ...
-% %                 'info.freq > 10000'}; % this give 0101 in acc and 1101 in ofc peaks -GOOD
-% %                  xlabels = {'1-4kHz', '5-8kHz', '10-40kHz'};
-%             conds = {'info.freq == 0',...
-%                 'info.freq > 5000 & info.freq < 10000', ...
-%                '(info.freq > 2000 & info.freq < 5000) | info.freq > 10000 & info.freq < 20000'};
-%            xlabels = {'Go Cue Octave', 'Surrounding Octaves'};
-%             
-%             T = table;
-%             for ii = 1:numel(conds)
-%                 obj.run_analysis('passive', quant_by, 0, ['info.atten == 0 & ', conds{ii}]);
-%                 figHandles = get(groot, 'Children');
-%                 sum_fig = findall(figHandles, 'Type', 'Legend');        % get handle for summary figure
-%                 figure(sum_fig.Parent)                                  % move to that fig
-%                 a = gca;
-%                 dots = findall(a, 'Type', 'Line');
-%                 acc = findall(dots, 'Color', 'k');
-%                 ofc = findall(dots, 'Color', 'b');
-%                 sub_tbl = table([double([acc.YData]'); double([ofc.YData]')], ...
-%                     [double([acc.XData]'); double([ofc.XData]')], ...
-%                     [ones(numel([acc.XData]), 1); 2*ones(numel([ofc.XData]), 1)],...
-%                     ii * ones(numel([dots.XData]), 1),...
-%                     [repelem({acc.Tag}, 2)'; repelem({ofc.Tag}, 2)'],...
-%                     'VariableNames', {quant_by, 'cond', 'area', 'subset', 'nme'});
-%                 if killnan                  % kill mice which are missing something
-%                     nans = find(isnan(sub_tbl.(quant_by)));
-%                     posnan = sub_tbl.cond(nans);
-%                     for tt = 1:numel(nans)
-%                         if posnan(tt) == 1
-%                             sub_tbl.(quant_by)(nans(tt)+1) = nan; %  nan and its follower
-%                         else
-%                             sub_tbl.(quant_by)(nans(tt)-1) = nan; %  nan and predecessor
-%                         end
-%                     end
-%                     sub_tbl(isnan(sub_tbl.(quant_by)), :) = []; % delete nans
-%                 end
-%                 T = [T; sub_tbl];
-%                 close all
-%             end
-%             
-%             f = figure;
-%             bbn_axs = axes(figure);
-%             hold(bbn_axs, 'on')
-%             f_bbn = bbn_axs.Parent;
-%             title('BBN')
-%             areas = {'ACC', 'OFC'};
-%             for ii = 1:2
-%                 sub_area = areas{ii};
-%                 figure(f_bbn)
-%                 
-%                 ylabel(['\Delta ', quant_by])
-%                 subbed = T.(quant_by)(T.area == ii & T.cond == 2) - T.(quant_by)(T.area == ii & T.cond == 1);
-%                 subbed_subset = T.subset(T.area == ii & T.cond == 1);
-%                 nmes = T.nme(T.area == ii & T.cond == 1 & T.subset == 1);
-%                 plot(bbn_axs, ii, subbed(subbed_subset == 1), 'ko');
-%                 errorbar(bbn_axs, ii, mean(subbed(subbed_subset == 1)), sem(subbed(subbed_subset == 1)), 'bo', 'MarkerFaceColor', 'b')
-%                 line(bbn_axs, [0.5, 2.5], [0, 0], 'Color', [0.4, 0.4, 0.4], 'LineStyle', '--')
-%                 
-%                 figure(f) 
-%                 for kk = 2:numel(conds)
-%                    axs = subplot(1,2, ii);
-%                    title(sub_area)
-%                    nmes = T.nme(T.area == ii & T.cond == 1 & T.subset == kk); 
-%                    plot(axs, kk-1, subbed(subbed_subset == kk), 'ko');
-%                    hold on
-%                    errorbar(axs, kk-1, mean(subbed(subbed_subset == kk)), sem(subbed(subbed_subset == kk)), 'bo', 'MarkerFaceColor', 'b')
-%                 end
-%                 line(axs, [0.5, numel(conds)-0.5], [0, 0], 'Color', [0.4, 0.4, 0.4], 'LineStyle', '--')                
-%             end
-%             set(f.Children, 'XTick', [1:numel(conds)-1], 'XTickLabel', xlabels, 'XLim', [0.5, numel(conds)-0.5], 'YLim', [-1, 1])
-%             set(bbn_axs, 'XTick', [1:2], 'XTickLabel', areas, 'XLim', [0.5, 2.5], 'YLim', [-1, 1])
-%             f_bbn.Position(3) = f.Position(3)/3;     
-%         end
-        
-%         function movement_lick_hists(obj, lims)
-%             mov_info = obj.combine_info('mov_info');
-%             l_info = obj.combine_info('l_info');
-%             t_info = obj.combine_info('t_info');
-%             
-%             m_breaks = find(mov_info.closest_trial_to_onset(2:end) < mov_info.closest_trial_to_onset(1:end -1));
-%             m_breaks = [1; m_breaks + 1; height(mov_info) + 1];
-%             
-%             t_breaks = find(t_info.trial_number == 1);
-%             t_breaks = [t_breaks; height(t_info) + 1];
-%             
-%             mov_trials = mov_info.closest_trial_to_onset;
-%             for jj = 2:length(m_breaks) - 1
-%                 mov_trials(m_breaks(jj): m_breaks(jj + 1) - 1) = mov_trials(m_breaks(jj): m_breaks(jj + 1) - 1) + t_breaks(jj) - 1;     % each closest trial becomes relative to all trials numbers
-%             end
-%             mov_lick_t = [mov_info, table(mov_trials), table(t_info.delay(mov_trials), 'VariableNames', {'delay'}), table(t_info.first_lick(mov_trials), 'VariableNames', {'lick'}), table(t_info.plot_result(mov_trials), 'VariableNames', {'outcome'})]; % combining data from t_info into mov_info
-%           
-%             % in histogram - movement comes first:
-%             mov_lick_diff = mov_lick_t.distance_from_onset - mov_lick_t.lick;
-%             mov_lick_diff(mov_lick_diff < lims(1) | mov_lick_diff > lims(2) | isnan(mov_lick_diff)) = []; % get rid of huge differences.
-%             h_mlhist = axes(figure); histogram(mov_lick_diff, 50);
-%             xlabel('Lag (s)')
-%             ylabel('Epoch count')
-%             h_mlhist.XLim = lims;
-%             h_mlhist.Parent.Position = [572, 678, 1324, 420];
-%             line([0; 0], [0; h_mlhist.YLim(2)], 'Color', 'r', 'LineStyle', '--', 'LineWidth', 1)
-%             title('Locomotion precedes licking in the task', 'Interpreter', 'none');
-%         end
         
         function cno_graphs(obj, outcome)
             if nargin < 2
@@ -2502,26 +1819,13 @@ avg_data{1} = mean(sample_norm)./ max(mean(sample_norm));
                 corr_prob(ii) = sum(t_info.plot_result(bin == ii - 1, :) == 1) / size(t_info.plot_result(bin == ii - 1, :) == 1, 1); % % to do premature for all trials in a bin.
                 
                 miss_prob(ii) = sum(t_info.plot_result(bin == ii - 1, :) == 0) / size(t_info.plot_result(bin == ii - 1, :) == 0, 1); % % to do premature for all trials in a bin.
-            
-% To correlate RT with baseline instead:            
-%                 prem_prob(ii) = nanmean(t_info.first_lick(t_info.plot_result(bin == ii - 1, :) == -1) - t_info.delay(t_info.plot_result(bin == ii - 1, :) == -1)); % % to do premature for all trials in a bin.
-%                 
-%                 corr_prob(ii) = nanmean(t_info.first_lick(t_info.plot_result(bin == ii - 1, :) == 1) - t_info.delay(t_info.plot_result(bin == ii - 1, :) == 1)); % % to do premature for all trials in a bin.
-%                 
-%                 miss_prob(ii) = nanmean(t_info.first_lick(t_info.plot_result(bin == ii - 1, :) == 0) - t_info.delay(t_info.plot_result(bin == ii - 1, :) == 0)); % % to do premature for all trials in a bin.
-%             
-            
+                  
             
             end
             prem_prob(isnan(prem_prob)) = 0; %If there are NaNs, means there were no premature with this baseline, change prob to zero.
             corr_prob(isnan(corr_prob)) = 0;
             miss_prob(isnan(miss_prob)) = 0;
-            
-            %             max_prem = max(prem_prob);
-            %             max_corr = max(corr_prob);
-            %             max_miss = max(miss_prob);
-            
-            % norm by mean prob
+
             max_prem = mean(prem_prob);
             max_corr = mean(corr_prob);
             max_miss = mean(miss_prob);
@@ -2530,43 +1834,11 @@ avg_data{1} = mean(sample_norm)./ max(mean(sample_norm));
             corr_prob = corr_prob ./ max_corr;
             miss_prob = miss_prob ./ max_miss;
            
-            
-            f = figure;
-            sp = subplot(3, 3, 1);
-            plot((edges - min(edges))/ max((edges - min(edges))), prem_prob, 'r.') % Can also look at prem/ommited ratio
-            xlabel(['mean pre-trial', '\DeltaF/F'])
-            ylabel('norm. premature rate (%)')
-            
-            sc = subplot(3, 3, 4);
-            plot((edges - min(edges))/ max((edges - min(edges))), corr_prob, 'g.')
-            xlabel(['mean pre-trial', '\DeltaF/F'])
-            ylabel('norm. hit rate (%)')
-            
-            sm = subplot(3, 3, 7);
-            plot((edges - min(edges))/ max((edges - min(edges))), miss_prob, 'k.')
-            xlabel(['mean pre-trial', '\DeltaF/F'])
-            ylabel('norm. miss rate (%)')
-            
-            
-            sbar = subplot(3, 3, 2);
-            end_pos = sp.Position(2) + sp.Position(4);
-            height = end_pos - sm.Position(2);
-            sbar.Position(2) = sm.Position(2);
-            sbar.Position(4) = height;
-            
             margin_to_take = 25; %in percent
             perbin = margin_to_take / (100 / binnum);
             top_ten_idx = ismember(bin, [round((binnum - perbin)):binnum]);
             bottom_ten_idx = ismember(bin, [0: (perbin - 1)]);
-            
-            %             [~, top_ten_idx] = maxk(norm_r_base, ceil((margin_to_take)/100 * size(data, 1)));
-            %             top_ten_idx = ismember(1:size(data, 1), top_ten_idx)';
-            %             [~, bottom_ten_idx] = mink(norm_r_base, ceil((margin_to_take)/100 * size(data, 1)));
-            %             bottom_ten_idx = ismember(1:size(data, 1), bottom_ten_idx)';
-            
-            
-            
-            
+
             sub_prem_top = (sum(t_info.plot_result(top_ten_idx) == -1) / sum(top_ten_idx)) / (mean(prem_prob) * max_prem);       % prem prob for top baseline, normalized by mean overall prem_prob
             sub_prem_bot = (sum(t_info.plot_result(bottom_ten_idx) == -1) / sum(bottom_ten_idx)) / (mean(prem_prob) * max_prem); % prem prob for bottom baseline, normalized by mean overall prem_prob
             
@@ -2579,54 +1851,6 @@ avg_data{1} = mean(sample_norm)./ max(mean(sample_norm));
             sub_prem = [sub_prem_bot - 1, sub_prem_top - 1];
             sub_cor = [sub_corr_bot - 1, sub_corr_top - 1];
             sub_miss = [sub_miss_bot - 1, sub_miss_top - 1];
-            
-            hold(sbar, 'on')
-            bar([0.8, 2.2], sub_prem, (1/7), 'r')
-            bar([1, 2], sub_cor, (1/5), 'g')
-            bar([1.2, 1.8], sub_miss, (1/3), 'k')
-            legend('premature', 'hit', 'miss', 'Location', 'southeast')
-            
-            %bar([sub_prem_top - 1, sub_prem_bot - 1])
-            xticks([1, 2]);
-            xticklabels({['Low ', num2str(margin_to_take), '%'], ['High ', num2str(margin_to_take), '%']})
-            xlim([0.3, 2.7])
-            ylim([-0.5, 0.5])
-            ylabel('Prob relative to Avg')
-            
-            
-            ds_data = downsample(data', 100)';
-            
-            sout = subplot(3, 3, 3);
-            shadedErrorBar(linspace(-5, 20, size(ds_data, 2)), ds_data(t_info.plot_result == 1, :), {@mean, @sem}, 'g');
-            hold on
-            shadedErrorBar(linspace(-5, 20, size(ds_data, 2)), ds_data(t_info.plot_result == -1, :), {@mean, @sem}, 'r');
-            shadedErrorBar(linspace(-5, 20, size(ds_data, 2)), ds_data(t_info.plot_result == 0, :), {@mean, @sem}, 'k');
-            xlim([-5, 20])
-            xlabel('Time (s)')
-            ylabel('\DeltaF/F')
-            sout.Position(4) = height * 0.45;
-            sout.Position(2) = (sbar.Position(2) + height) - sout.Position(4);
-            
-            shl = subplot(3, 3, 9);
-            shadedErrorBar(linspace(-5, 20, size(ds_data, 2)), ds_data(bottom_ten_idx, :), {@mean, @sem}, 'k');
-            hold on
-            shadedErrorBar(linspace(-5, 20, size(ds_data, 2)), ds_data(top_ten_idx, :), {@mean, @sem}, 'b');
-            xlim([-5, 20])
-            xlabel('Time (s)')
-            ylabel('\DeltaF/F')
-            shl.Position(4) = height * 0.45;
-            patch_h = flipud(findall(shl, 'Type', 'patch'));          % order is reversed (last one drawn is first)
-            legend(shl, patch_h, {['Low ', num2str(margin_to_take), '%'], ['High ', num2str(margin_to_take), '%']}, 'Location', 'best')
-            
-            f.Position(3) = 1.5 * f.Position(3); % widen the figure
-            
-            %             High correct vs miss
-            %             high_corr = data(top_ten_idx & t_info.plot_result == 1, :);
-            %             figure; shadedErrorBar(linspace(-5,20,length(data)), high_corr, {@mean, @sem}, 'g');
-            %             high_miss = data(top_ten_idx & t_info.plot_result == 0, :);
-            %             hold on
-            %             shadedErrorBar(linspace(-5,20,length(data)), high_miss, {@mean, @sem}, 'k');
-            
             subs = [sub_prem; sub_cor; sub_miss]; % column 1 is low, 2 is high (prem, cor, miss)
             probs = [prem_prob; corr_prob; miss_prob];
             [r, p] = corrcoef(edges, prem_prob);
@@ -2704,74 +1928,69 @@ avg_data{1} = mean(sample_norm)./ max(mean(sample_norm));
             sm = cell2mat(sm);
             sm = reshape(sm, size(sig, 1), []);
         end
-%         function quant = compare_response_auc(data, baseline_time, response_time)
-%             % calculate response based on change in auc before and after
-%             % event, for two conditions (i.e. pre and post learning)
-%             %data = data - min(data')';  % make positive before quantification
-%             quant = mean(trapz(data(:, response_time)')) - mean(trapz(data(:, baseline_time)'));
-%         end
-%         function h_new = create_RT_summary(hf)
-%             % organizes grouped RT figure
-%             clrs = [140, 179, 250; 62,98,83; 129, 88, 135] ./255;
-%             nmes = {'chill', 'middle', 'stressed'};
-%             lick_hists = findall(hf, 'Type', 'Histogram', 'FaceColor', [1, 0, 0]);
-%             delay_hists = findall(hf, 'Type', 'Histogram', 'FaceColor', [1, 0, 1]);
-%             dots = findall(hf, 'Type', 'Scatter');
-%             for ii = 1:numel(dots)
-%                 set(dots(ii), 'MarkerFaceColor', clrs(ii, :), 'MarkerFaceAlpha', 0.3, 'SizeData', 1)
-%                 set(lick_hists(ii), 'FaceColor', clrs(ii, :), 'Normalization', 'probability') % can use cdf to look at what percent of licks occur before time t
-%                 set(delay_hists(ii), 'FaceColor', clrs(ii, :))
-%             end
-%             h_new = figure;
-%             % plot lick histograms
-%             ax1 = axes(h_new);
-%             hold(ax1, 'on')
-%             
-%             copyobj(lick_hists, ax1)
-%             hl = legend(ax1, ax1.Children, nmes, 'AutoUpdate', 'off', 'Orientation', 'horizontal');
-%             xlabel(ax1, 'RT (sec)'); ylabel(ax1, 'Trial Count'); title(ax1, 'Premature RT by Group');
-%             for ii = 1:numel(dots)
-%                 lh(ii) = line(ax1, [median(lick_hists(ii).Data), median(lick_hists(ii).Data)], [ax1.YLim(1), ax1.YLim(2)], ...
-%                     'Color', clrs(ii, :), 'LineWidth', 1, 'LineStyle', '--'); %plot mean line
-%             end
-%             uistack(lh, 'bottom')
-%             uistack(hl, 'top')
-%             
-%             % plot delay subhistograms
-%             ax2 = axes('Position', [0.5, 0.2095, 0.3250, 0.2096]);
-%             hold(ax2, 'on')
-%             copyobj(delay_hists, ax2)
-%             bin_cts = {delay_hists.BinCounts};
-%             bin_edges = delay_hists(1).BinEdges(2:end);
-%             dum1 = {};
-%             dum2 = {};
-%             for ii = 1:numel(dots)
-%                 dum1{ii} = bin_edges;
-%                 dum2{ii} = 1;
-%             end
-%             ps = cellfun(@polyfit, dum1, bin_cts, dum2, 'UniformOutput', false); % get linear fits
-%             yhats =  cellfun(@polyval, ps, dum1, 'UniformOutput', false);  % get y estimates
-%             for ii = 1:numel(dots)
-%                 plot(ax2, bin_edges, yhats{ii}, '-', 'Color', clrs(ii, :), 'LineWidth', 2);        % plot slopes
-%                 text(ax2, ax2.XLim(2), yhats{ii}(end), sprintf('%1.2f', ps{ii}(1)), 'Color', clrs(ii, :))
-%             end
-%             xlabel(ax2, 'Delay (sec)'); ylabel(ax2, 'Trial Count'); title(ax2, 'Premature Delay dist.');
-%             text(ax2, ax2.XLim(2), ax2.Title.Position(2), 'Slope:', 'Color', 'k', 'FontWeight', 'bold', 'VerticalAlignment', 'bottom', 'FontSize', ax2.Title.FontSize)
-%             
-%             % plot lick scatters
-%             for ii = 1:numel(dots)
-%                 ax3(ii) = axes('Position', [ax2.Position(1) + ax2.Position(3)/2.65 * (ii-1) , ax2.Position(2)*2.65, ax2.Position(3)/4, ax2.Position(4)]);
-%                 copyobj(dots(ii), ax3(ii));
-%                 xlabel('RT')
-%                 ylabel('Delay')
-%                 if ii ==2
-%                     title('Premature Licks')
-%                 end
-%             end
-%             hl.Position = [0.49, 0.86, 0.35, 0.036];
-%             h_new.Position = [474,   503,   766,   595];
-%             close(hf)
-%         end
+
+        function h_new = create_RT_summary(hf)
+            % organizes grouped RT figure
+            clrs = [140, 179, 250; 62,98,83; 129, 88, 135] ./255;
+            nmes = {'chill', 'middle', 'stressed'};
+            lick_hists = findall(hf, 'Type', 'Histogram', 'FaceColor', [1, 0, 0]);
+            delay_hists = findall(hf, 'Type', 'Histogram', 'FaceColor', [1, 0, 1]);
+            dots = findall(hf, 'Type', 'Scatter');
+            for ii = 1:numel(dots)
+                set(dots(ii), 'MarkerFaceColor', clrs(ii, :), 'MarkerFaceAlpha', 0.3, 'SizeData', 1)
+                set(lick_hists(ii), 'FaceColor', clrs(ii, :), 'Normalization', 'probability') % can use cdf to look at what percent of licks occur before time t
+                set(delay_hists(ii), 'FaceColor', clrs(ii, :))
+            end
+            h_new = figure;
+            % plot lick histograms
+            ax1 = axes(h_new);
+            hold(ax1, 'on')
+            
+            copyobj(lick_hists, ax1)
+            hl = legend(ax1, ax1.Children, nmes, 'AutoUpdate', 'off', 'Orientation', 'horizontal');
+            xlabel(ax1, 'RT (sec)'); ylabel(ax1, 'Trial Count'); title(ax1, 'Premature RT by Group');
+            for ii = 1:numel(dots)
+                lh(ii) = line(ax1, [median(lick_hists(ii).Data), median(lick_hists(ii).Data)], [ax1.YLim(1), ax1.YLim(2)], ...
+                    'Color', clrs(ii, :), 'LineWidth', 1, 'LineStyle', '--'); %plot mean line
+            end
+            uistack(lh, 'bottom')
+            uistack(hl, 'top')
+            
+            % plot delay subhistograms
+            ax2 = axes('Position', [0.5, 0.2095, 0.3250, 0.2096]);
+            hold(ax2, 'on')
+            copyobj(delay_hists, ax2)
+            bin_cts = {delay_hists.BinCounts};
+            bin_edges = delay_hists(1).BinEdges(2:end);
+            dum1 = {};
+            dum2 = {};
+            for ii = 1:numel(dots)
+                dum1{ii} = bin_edges;
+                dum2{ii} = 1;
+            end
+            ps = cellfun(@polyfit, dum1, bin_cts, dum2, 'UniformOutput', false); % get linear fits
+            yhats =  cellfun(@polyval, ps, dum1, 'UniformOutput', false);  % get y estimates
+            for ii = 1:numel(dots)
+                plot(ax2, bin_edges, yhats{ii}, '-', 'Color', clrs(ii, :), 'LineWidth', 2);        % plot slopes
+                text(ax2, ax2.XLim(2), yhats{ii}(end), sprintf('%1.2f', ps{ii}(1)), 'Color', clrs(ii, :))
+            end
+            xlabel(ax2, 'Delay (sec)'); ylabel(ax2, 'Trial Count'); title(ax2, 'Premature Delay dist.');
+            text(ax2, ax2.XLim(2), ax2.Title.Position(2), 'Slope:', 'Color', 'k', 'FontWeight', 'bold', 'VerticalAlignment', 'bottom', 'FontSize', ax2.Title.FontSize)
+            
+            % plot lick scatters
+            for ii = 1:numel(dots)
+                ax3(ii) = axes('Position', [ax2.Position(1) + ax2.Position(3)/2.65 * (ii-1) , ax2.Position(2)*2.65, ax2.Position(3)/4, ax2.Position(4)]);
+                copyobj(dots(ii), ax3(ii));
+                xlabel('RT')
+                ylabel('Delay')
+                if ii ==2
+                    title('Premature Licks')
+                end
+            end
+            hl.Position = [0.49, 0.86, 0.35, 0.036];
+            h_new.Position = [474,   503,   766,   595];
+            close(hf)
+        end
         
         function groups = group_members(groupby)
             switch groupby                

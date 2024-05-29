@@ -11,22 +11,19 @@ classdef RegModel < handle
         PATH
     end
     methods
-    function obj = RegModel(scope, merge_aud)
+    function obj = RegModel(path, scope, merge_aud, source)
         % scope = 'full' : Takes CVR2 data from entire signal
         %         'label': Takes CVR2 data limited to the scope of that label
                  
-            obj.PATH = 'H:\My Drive\Matlab_Code';       % change if necessary
-            %load(strcat(obj.PATH, '\model_params_session_avg_240121_full_model_window_noruns_allmice_twoT_fixed'));
-            %load(strcat(obj.PATH, '\model_params_session_avg_200121_full_model_window_spon_task_runs_allmice_twoT.mat')); % with two types of tuns (spon/task)
-            %load(strcat(obj.PATH, '\model_params_session_avg_210121_full_model_noruns_DREADDs_twoT'));
-          % load(strcat(obj.PATH, '\model_params_session_avg_010321_full_model_window_noruns_allmice_twoT_fixed_SHUFFLED')); %THIS
-            %load(strcat(obj.PATH, '\model_params_session_avg_030321_full_model_window_spon_task_runs_allmice_twoT_Shuffled'));
-            %load(strcat(obj.PATH, '\model_params_session_avg_220321_full_model_window_noruns_allmice_twoT_fixed_SHUFFLED_currentBL'));
-            %load(strcat(obj.PATH, '\model_params_session_avg_090421_full_model_window_noruns_allmice_twoT_fixed_SHUFFLED_PreBL'));
+            obj.PATH = path;
+
+            switch source
+                case 'cno'
+                    load(strcat(obj.PATH, '\model_params_session_avg_080421_full_model_noruns_DREADDs_twoT_shuffled'));
+                case 'main'
+                    load(strcat(obj.PATH, '\model_params_session_avg_130622_full_model_window_noruns_allmice_twoT_fixed_SHUFFLED_PreBL_FINAL'));
+            end
             
-            % Use one of these two:
-          % load(strcat(obj.PATH, '\model_params_session_avg_080421_full_model_noruns_DREADDs_twoT_shuffled'));
-            load(strcat(obj.PATH, '\model_params_session_avg_130622_full_model_window_noruns_allmice_twoT_fixed_SHUFFLED_PreBL_FINAL'));
            
             switch scope
                 case 'full'
@@ -34,7 +31,7 @@ classdef RegModel < handle
                     obj.UC = UC_full;
                     obj.GSVM = GSVM;
                     obj.GUC = GUC;
-% %                     % Normalize by window size?
+% %                     % Normalize by window size
                     switch width(SVM_full)-1
                         case 17
                             obj.data.win_length = [5.5, 5.5, 5.5, 8, 11, 3, 3, 3, 3, 3, 1.5, 10, 10, 10, 5, 5, 5];
@@ -120,7 +117,7 @@ classdef RegModel < handle
             grp_nms = {'ACCin', 'AUDin'};
         else
             groups = obj.GROUPS.([divide_by, '_sep']);
-            grp_nms = {'chill', 'middle', 'stressed'};
+            grp_nms = {'exploiters', 'explorers', ' '};
         end
               
         f = figure;
@@ -215,7 +212,7 @@ classdef RegModel < handle
             grp_nms = {'Saline', 'CNO'};
         else
             groups = obj.GROUPS.([divide_by, '_sep']);
-            grp_nms = {'chill', 'middle', 'stressed'};
+            grp_nms = {'exploiters', 'explorers', ' '};
         end
         h_bar = figure;
         for ii = 1:numel(groups)
@@ -303,8 +300,7 @@ classdef RegModel < handle
         tags(contains(obj.SVM.Properties.RowNames, group{ii})) = ii;
         end
     end
-    
-    %------------------- Functions for paper figures -----------------------
+
     function h_bar = vert_summary(obj, data_type)
         groups = [{obj.SVM.Properties.RowNames(contains(obj.SVM.Properties.RowNames, 'ACC'))}, ...
             {obj.SVM.Properties.RowNames(contains(obj.SVM.Properties.RowNames, 'OFC'))}];
@@ -370,7 +366,7 @@ classdef RegModel < handle
             cmap = [139, 197, 184; 189, 191, 224];
         else
             groups = obj.GROUPS.([divide_by, '_sep']);
-            grp_nms = {'chill', 'middle', 'stressed'};
+            grp_nms = {'exploiters', 'explorers', ' '};
             cmap = obj.data.cmap .* 255;
         end
         
@@ -491,80 +487,6 @@ classdef RegModel < handle
             end
         end
         
-
-%         sgtitle(f, [nme, ' Comparison'])
-%         ha(1) = subplot(2, 1, 1);
-%         hold(ha(1), 'on')
-%         ylabel(ha(1), 'SVM')
-% %         for ii = 1:(width(svm_plot)-1)
-% %             htmp = axes(figure);
-% %             clrs = cmap + 30*(ii-1);
-% %             clrs(clrs > 255) = 255;
-% %             beeswarm(svm_plot.group, svm_plot{:, ii}, 'sort_style', 'up', 'corral_style', 'gutter', 'colormap', clrs./255, 'MarkerFaceAlpha', 0.7, 'overlay_style', 'sd');
-% %             %dots = findall(htmp, 'Type', 'Scatter');
-% %             dots = htmp.Children;
-% %             copyobj(dots, ha(1))
-% %             close(htmp.Parent);
-% %         end
-%         for ii = 1:(width(svm_plot)-1)
-%             htmp = axes(figure);
-%             clrs = cmap + 30*(ii-1);
-%             clrs(clrs > 255) = 255;
-%             beeswarm(svm_plot.group, svm_plot{:, ii}, 'sort_style', 'up', 'corral_style', 'gutter', 'colormap', clrs./255, 'MarkerFaceAlpha', 0.7, 'overlay_style', 'sd');
-%             %dots = findall(htmp, 'Type', 'Scatter');
-%             dots = htmp.Children;
-%             copyobj(dots, ha(1))
-%             close(htmp.Parent);
-%         end
-%         
-%         ha(2) = subplot(2, 1, 2);
-%         hold(ha(2), 'on')
-%         ylabel(ha(2), 'UC')
-% %         for ii = 1:(width(svm_plot)-1)
-% %             htmp = axes(figure);
-% %             clrs = cmap + 30*(ii-1);
-% %             clrs(clrs > 255) = 255;
-% %             beeswarm(uc_plot.group, uc_plot{:, ii}, 'sort_style', 'down', 'corral_style', 'gutter', 'colormap', clrs./255, 'MarkerFaceAlpha', 0.7, 'overlay_style', 'sd');
-% %             %dots = findall(htmp, 'Type', 'Scatter');
-% %             dots = htmp.Children;
-% %             copyobj(dots, ha(2))
-% %             close(htmp.Parent);
-% %         end
-%         for ii = 1:(width(svm_plot)-1)
-%             htmp = axes(figure);
-%             clrs = cmap + 30*(ii-1);
-%             clrs(clrs > 255) = 255;
-%             beeswarm(uc_plot.group, uc_plot{:, ii}, 'sort_style', 'down', 'corral_style', 'gutter', 'colormap', clrs./255, 'MarkerFaceAlpha', 0.7, 'overlay_style', 'sd');
-%             %dots = findall(htmp, 'Type', 'Scatter');
-%             dots = htmp.Children;
-%             copyobj(dots, ha(2))
-%             close(htmp.Parent);
-%         end
-        
-%         for ii = 1:2
-%         ylims = [ha(ii).YLim];
-%         set(ha(ii), 'YLim', [min(ylims(:)), max(ylims(:))])
-%         set(ha(ii), 'XTick', [1:size(grp_nms, 2)], ...
-%             'XTickLabel', grp_nms, ...
-%             'TickLabelInterpreter', 'none')
-%         if log_scale
-%             set(ha(ii), 'YScale', 'log')
-%         end
-%         end
-%         dcm_obj = datacursormode(f);
-%         set(dcm_obj,'UpdateFcn',@myupdatefcn)
-%         
-%         function txt = myupdatefcn(~,event_obj)
-%             % Customizes text of data tips
-%             try
-%                 pos = get(event_obj,'Position');
-%                 plot_obj = get(event_obj, 'Target');
-%                 obj_name = strrep(plot_obj.Tag(1:end), '_', ' ');
-%                 txt = {num2str(pos(2)), obj_name};              % add to the highlighted tag the name of the mouse
-%             catch
-%                 keyboard();                                 % in case something goes wrong
-%             end
-%         end
     end
     
     % ----------------------------------------------------------------------%
